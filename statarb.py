@@ -10,10 +10,10 @@ def get_stock_data():
     """Read stock data from local CSV files"""
     # Define file mappings
     file_mappings = {
-        'AAPL': 'aapl data 2015-2025 - Sheet1.csv',
-        'AMZN': 'AMZN data 2015-2025 - Sheet1.csv',
-        'GOOG': 'GOOG data 2015-2025 - Sheet1.csv',
-        'MSFT': 'msft data 2015-2025 - Sheet1.csv'
+        'AAPL': 'tech data/aapl data 2015-2025 - Sheet1.csv',
+        'AMZN': 'tech data/AMZN data 2015-2025 - Sheet1.csv',
+        'GOOG': 'tech data/GOOG data 2015-2025 - Sheet1.csv',
+        'MSFT': 'tech data/msft data 2015-2025 - Sheet1.csv'
     }
     
     # Read and process each file
