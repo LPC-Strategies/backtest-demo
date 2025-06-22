@@ -7,22 +7,22 @@ from statsmodels.tsa.stattools import coint, adfuller
 from statsmodels.tsa.vector_ar.vecm import coint_johansen
 
 def get_stock_data():
-    """Read KO and PEP data from local CSV files"""
+    """Read GOOG and MSFT data from local CSV files"""
     # Read and process each file
-    KO_df = pd.read_csv('KO data 2015-2025 - Sheet1.csv')
-    PEP_df = pd.read_csv('PEP data 2015-2025 - Sheet1.csv')
+    GOOG_df = pd.read_csv('GOOG data 2015-2025 - Sheet1.csv')
+    MSFT_df = pd.read_csv('msft data 2015-2025 - Sheet1.csv')
     
     # Convert dates and set as index
-    KO_df['Date'] = pd.to_datetime(KO_df['Date']).dt.date
-    PEP_df['Date'] = pd.to_datetime(PEP_df['Date']).dt.date
-    KO_df.set_index('Date', inplace=True)
-    PEP_df.set_index('Date', inplace=True)
-    KO_df = KO_df[~KO_df.index.duplicated(keep='first')]
-    PEP_df = PEP_df[~PEP_df.index.duplicated(keep='first')]
+    GOOG_df['Date'] = pd.to_datetime(GOOG_df['Date']).dt.date
+    MSFT_df['Date'] = pd.to_datetime(MSFT_df['Date']).dt.date
+    GOOG_df.set_index('Date', inplace=True)
+    MSFT_df.set_index('Date', inplace=True)
+    GOOG_df = GOOG_df[~GOOG_df.index.duplicated(keep='first')]
+    MSFT_df = MSFT_df[~MSFT_df.index.duplicated(keep='first')]
     # Create DataFrame with both stocks
     data = pd.DataFrame({
-        'KO': KO_df['Close'],
-        'PEP': PEP_df['Close']
+        'GOOG': GOOG_df['Close'],
+        'MSFT': MSFT_df['Close']
     })
     data = data.dropna()
     
@@ -69,19 +69,19 @@ def calculate_cointegration_spread(data, window=252, min_window=60):
         
         # Test for cointegration in the window
         is_cointegrated, p_value, beta = test_cointegration(
-            window_data['KO'], window_data['PEP']
+            window_data['GOOG'], window_data['MSFT']
         )
         
         cointegration_status.iloc[i] = is_cointegrated
         
         if is_cointegrated and beta is not None:
             betas.iloc[i] = beta
-            # Calculate spread: KO - beta * PEP
-            spread.iloc[i] = data['KO'].iloc[i] - beta * data['PEP'].iloc[i]
+            # Calculate spread: GOOG - beta * MSFT
+            spread.iloc[i] = data['GOOG'].iloc[i] - beta * data['MSFT'].iloc[i]
         else:
             # If not cointegrated, use simple price ratio as fallback
-            betas.iloc[i] = data['KO'].iloc[i] / data['PEP'].iloc[i]
-            spread.iloc[i] = np.log(data['KO'].iloc[i] / data['PEP'].iloc[i])
+            betas.iloc[i] = data['GOOG'].iloc[i] / data['MSFT'].iloc[i]
+            spread.iloc[i] = np.log(data['GOOG'].iloc[i] / data['MSFT'].iloc[i])
     
     return spread, betas, cointegration_status
 
@@ -114,7 +114,7 @@ def calculate_optimal_thresholds(spread, window=252):
     return entry_threshold, exit_threshold
 
 def backtest_cointegration_pairs_trading(data, window=252, min_window=60):
-    """Backtest cointegration-based pairs trading strategy for KO/PEP"""
+    """Backtest cointegration-based pairs trading strategy for GOOG/MSFT"""
     returns = data.pct_change()
     results = pd.DataFrame(index=data.index)
     results['Portfolio_Value'] = 1.0
@@ -141,29 +141,29 @@ def backtest_cointegration_pairs_trading(data, window=252, min_window=60):
             
             # Entry signals
             if current_z > entry_threshold and current_position <= 0:
-                positions.loc[data.index[i], 'KO'] = -1
-                positions.loc[data.index[i], 'PEP'] = betas.iloc[i]
+                positions.loc[data.index[i], 'GOOG'] = -1
+                positions.loc[data.index[i], 'MSFT'] = betas.iloc[i]
                 current_position = 1
                 trades.append({
                     'date': data.index[i],
-                    'type': 'short_ko_long_pep',
+                    'type': 'short_goog_long_msft',
                     'zscore': current_z,
                     'threshold': entry_threshold
                 })
             elif current_z < -entry_threshold and current_position >= 0:
-                positions.loc[data.index[i], 'KO'] = 1
-                positions.loc[data.index[i], 'PEP'] = -betas.iloc[i]
+                positions.loc[data.index[i], 'GOOG'] = 1
+                positions.loc[data.index[i], 'MSFT'] = -betas.iloc[i]
                 current_position = -1
                 trades.append({
                     'date': data.index[i],
-                    'type': 'long_ko_short_pep',
+                    'type': 'long_goog_short_msft',
                     'zscore': current_z,
                     'threshold': -entry_threshold
                 })
             # Exit signals
             elif abs(current_z) < exit_threshold and current_position != 0:
-                positions.loc[data.index[i], 'KO'] = 0
-                positions.loc[data.index[i], 'PEP'] = 0
+                positions.loc[data.index[i], 'GOOG'] = 0
+                positions.loc[data.index[i], 'MSFT'] = 0
                 current_position = 0
                 trades.append({
                     'date': data.index[i],
@@ -176,8 +176,8 @@ def backtest_cointegration_pairs_trading(data, window=252, min_window=60):
                 positions.loc[data.index[i]] = positions.iloc[i-1]
         else:
             # No position when not cointegrated
-            positions.loc[data.index[i], 'KO'] = 0
-            positions.loc[data.index[i], 'PEP'] = 0
+            positions.loc[data.index[i], 'GOOG'] = 0
+            positions.loc[data.index[i], 'MSFT'] = 0
             current_position = 0
         
         # Calculate daily returns
@@ -203,8 +203,8 @@ def plot_enhanced_results(data, results, positions, zscore, spread, cointegratio
     
     # Plot stock prices
     plt.subplot(5, 1, 2)
-    plt.plot(data.index, data['KO'], label='KO', alpha=0.7, linewidth=1.5)
-    plt.plot(data.index, data['PEP'], label='PEP', alpha=0.7, linewidth=1.5)
+    plt.plot(data.index, data['GOOG'], label='GOOG', alpha=0.7, linewidth=1.5)
+    plt.plot(data.index, data['MSFT'], label='MSFT', alpha=0.7, linewidth=1.5)
     plt.title('Stock Prices')
     plt.legend()
     plt.grid(True, alpha=0.3)
@@ -212,7 +212,7 @@ def plot_enhanced_results(data, results, positions, zscore, spread, cointegratio
     # Plot cointegration spread
     plt.subplot(5, 1, 3)
     plt.plot(spread.index, spread, label='Cointegration Spread', color='purple', alpha=0.8)
-    plt.title('KO/PEP Cointegration Spread')
+    plt.title('GOOG/MSFT Cointegration Spread')
     plt.legend()
     plt.grid(True, alpha=0.3)
     
@@ -231,7 +231,7 @@ def plot_enhanced_results(data, results, positions, zscore, spread, cointegratio
     plt.axhline(y=exit_threshold, color='g', linestyle='--', label='Exit Threshold')
     plt.axhline(y=-exit_threshold, color='g', linestyle='--')
     plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-    plt.title('KO/PEP Cointegration Spread Z-Score')
+    plt.title('GOOG/MSFT Cointegration Spread Z-Score')
     plt.legend()
     plt.grid(True, alpha=0.3)
     
@@ -254,8 +254,8 @@ def analyze_trades(trades, data):
     
     trade_analysis = {
         'total_trades': len(trades),
-        'long_ko_trades': len([t for t in trades if t['type'] == 'long_ko_short_pep']),
-        'short_ko_trades': len([t for t in trades if t['type'] == 'short_ko_long_pep']),
+        'long_goog_trades': len([t for t in trades if t['type'] == 'long_goog_short_msft']),
+        'short_goog_trades': len([t for t in trades if t['type'] == 'short_goog_long_msft']),
         'exit_trades': len([t for t in trades if t['type'] == 'exit']),
         'avg_zscore_entry': np.mean([t['zscore'] for t in trades if t['type'] != 'exit']),
         'avg_threshold': np.mean([t['threshold'] for t in trades])
@@ -269,17 +269,17 @@ def main():
     data = get_stock_data()
     
     # Test initial cointegration
-    print("\nTesting cointegration between KO and PEP...")
-    is_cointegrated, p_value, beta = test_cointegration(data['KO'], data['PEP'])
+    print("\nTesting cointegration between GOOG and MSFT...")
+    is_cointegrated, p_value, beta = test_cointegration(data['GOOG'], data['MSFT'])
     print(f"Overall cointegration test:")
     print(f"  Cointegrated: {is_cointegrated}")
     print(f"  P-value: {p_value:.4f}")
-    print(f"  Beta (KO = β * PEP): {beta:.4f}" if beta else "  Beta: N/A")
+    print(f"  Beta (GOOG = β * MSFT): {beta:.4f}" if beta else "  Beta: N/A")
     
     # Calculate correlation
     returns = data.pct_change()
-    correlation = returns['KO'].corr(returns['PEP'])
-    print(f"\nCorrelation between KO and PEP returns: {correlation:.4f}")
+    correlation = returns['GOOG'].corr(returns['MSFT'])
+    print(f"\nCorrelation between GOOG and MSFT returns: {correlation:.4f}")
     
     # Strategy parameters
     window = 252  # One year for cointegration testing
@@ -314,8 +314,8 @@ def main():
     
     print(f"\n=== Trading Analysis ===")
     print(f"Total Trades: {trade_analysis.get('total_trades', 0)}")
-    print(f"Long KO/Short PEP: {trade_analysis.get('long_ko_trades', 0)}")
-    print(f"Short KO/Long PEP: {trade_analysis.get('short_ko_trades', 0)}")
+    print(f"Long GOOG/Short MSFT: {trade_analysis.get('long_goog_trades', 0)}")
+    print(f"Short GOOG/Long MSFT: {trade_analysis.get('short_goog_trades', 0)}")
     print(f"Exit Trades: {trade_analysis.get('exit_trades', 0)}")
     print(f"Average Entry Z-Score: {trade_analysis.get('avg_zscore_entry', 0):.2f}")
     print(f"Average Threshold: {trade_analysis.get('avg_threshold', 0):.2f}")

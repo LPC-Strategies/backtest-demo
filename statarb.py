@@ -123,6 +123,34 @@ def calculate_pair_spread(pair, data, window=20):
     zscore = calculate_zscore(ratio, window)
     return zscore
 
+def calculate_volatility_adjusted_thresholds(data, base_threshold=2.0, window=20):
+    """Calculate volatility-adjusted entry and exit thresholds"""
+    returns = data.pct_change()
+    rolling_vol = returns.rolling(window=window).std()
+    adjusted_thresholds = {}
+    for column in data.columns:
+        vol_factor = rolling_vol[column].iloc[-1] / rolling_vol[column].mean()
+        adjusted_thresholds[column] = max(1.5, min(3.0, base_threshold / vol_factor))
+    return adjusted_thresholds
+
+def calculate_position_size(volatility, max_position=1.0):
+    """Calculate position size based on volatility"""
+    vol_factor = 1 / (1 + volatility)
+    return max_position * vol_factor
+
+def calculate_momentum_filter(data, window=20):
+    """Calculate momentum filter to avoid trading against strong trends"""
+    returns = data.pct_change()
+    momentum = returns.rolling(window=window).mean()
+    return momentum
+
+def apply_stop_loss(positions, returns, stop_loss_pct=0.05, window=5):
+    """Apply stop-loss mechanism to limit drawdowns"""
+    cumulative_returns = (positions * returns).rolling(window=window).sum()
+    stop_loss_mask = cumulative_returns < -stop_loss_pct
+    positions[stop_loss_mask] = 0
+    return positions
+
 def backtest_cointegration_statarb(data, window=20, entry_threshold=2.0, exit_threshold=0.0, 
                                   min_correlation=0.7, cointegration_window=252):
     """Backtest statistical arbitrage strategy with cointegration"""
